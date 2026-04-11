@@ -1,5 +1,6 @@
 import os
 import secrets
+import json
 
 from flask import Flask, jsonify, make_response, render_template, request
 
@@ -31,6 +32,10 @@ def attach_session_cookie(response, session_id, is_new_session):
             samesite="Lax",
         )
     return response
+
+
+def normalize_embedding_text(content):
+    return content.strip().lower().rstrip(".!?")
 
 
 @app.get("/")
@@ -93,15 +98,52 @@ def chat():
         return attach_session_cookie(response, session_id, is_new_session)
 
     extraction_result = {"likes": [], "dislikes": []}
+    embedding_settings = memory_store.get_embedding_settings()
 
     try:
         extraction_result = chat_service.extract_preferences(message)
         for item in extraction_result["likes"]:
-            if memory_store.add_memory(session_id, "like", item):
-                print(f"[memory] stored like for {session_id[:8]}: {item}")
+            embedding_text = normalize_embedding_text(item)
+            embedding_vector = chat_service.build_embedding(
+                embedding_text,
+                embedding_settings["embedding_model"],
+                embedding_settings["embedding_dimensions"],
+            )
+            if memory_store.add_memory(
+                session_id=session_id,
+                memory_type="like",
+                content=item,
+                weight=1.0,
+                embedding_text=embedding_text,
+                embedding_model=embedding_settings["embedding_model"],
+                embedding_dimensions=embedding_settings["embedding_dimensions"],
+                embedding=json.dumps(embedding_vector),
+            ):
+                print(
+                    f"[memory] stored like for {session_id[:8]}: "
+                    f"{item} -> embedding '{embedding_text}'"
+                )
         for item in extraction_result["dislikes"]:
-            if memory_store.add_memory(session_id, "dislike", item):
-                print(f"[memory] stored dislike for {session_id[:8]}: {item}")
+            embedding_text = normalize_embedding_text(item)
+            embedding_vector = chat_service.build_embedding(
+                embedding_text,
+                embedding_settings["embedding_model"],
+                embedding_settings["embedding_dimensions"],
+            )
+            if memory_store.add_memory(
+                session_id=session_id,
+                memory_type="dislike",
+                content=item,
+                weight=-1.0,
+                embedding_text=embedding_text,
+                embedding_model=embedding_settings["embedding_model"],
+                embedding_dimensions=embedding_settings["embedding_dimensions"],
+                embedding=json.dumps(embedding_vector),
+            ):
+                print(
+                    f"[memory] stored dislike for {session_id[:8]}: "
+                    f"{item} -> embedding '{embedding_text}'"
+                )
     except Exception as exc:
         print(f"[memory] extraction skipped for {session_id[:8]} due to error: {exc}")
 

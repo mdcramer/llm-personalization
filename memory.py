@@ -27,11 +27,24 @@ class MemoryStore:
         except (TypeError, ValueError):
             return default
 
+    def _config_str(self, key, default):
+        value = self.config.get(key)
+        if value is None:
+            return default
+        value = value.strip()
+        return value or default
+
     def get_limits(self):
         return {
             "memory_ttl_days": self._config_int("MEMORY_TTL_DAYS", 14),
             "max_memories_per_session": self._config_int("MAX_MEMORIES_PER_SESSION", 150),
             "max_total_memories": self._config_int("MAX_TOTAL_MEMORIES", 5000),
+        }
+
+    def get_embedding_settings(self):
+        return {
+            "embedding_model": self._config_str("EMBEDDING_MODEL", "text-embedding-3-small"),
+            "embedding_dimensions": self._config_int("EMBEDDING_DIMENSIONS", 256),
         }
 
     def _connect(self):
@@ -71,6 +84,54 @@ class MemoryStore:
                     """
                 )
 
+            if "weight" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN weight REAL DEFAULT 0
+                    """
+                )
+
+            if "embedding_text" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN embedding_text TEXT
+                    """
+                )
+
+            if "embedding_model" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN embedding_model TEXT
+                    """
+                )
+
+            if "embedding_dimensions" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN embedding_dimensions INTEGER
+                    """
+                )
+
+            if "embedding" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN embedding TEXT
+                    """
+                )
+                if "embedding_json" in columns:
+                    connection.execute(
+                        """
+                        UPDATE memories
+                        SET embedding = embedding_json
+                        WHERE embedding IS NULL AND embedding_json IS NOT NULL
+                        """
+                    )
+
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_memories_session_created
@@ -84,32 +145,47 @@ class MemoryStore:
                 """
             )
 
-    def add_memory(self, session_id, memory_type, content):
+    def add_memory(
+        self,
+        session_id,
+        memory_type,
+        content,
+        weight,
+        embedding_text,
+        embedding_model,
+        embedding_dimensions,
+        embedding,
+    ):
         content = content.strip()
+        embedding_text = embedding_text.strip()
         if not content:
             return False
 
         with self._connect() as connection:
-            existing = connection.execute(
-                """
-                SELECT id
-                FROM memories
-                WHERE memory_type = ?
-                  AND session_id = ?
-                  AND lower(content) = lower(?)
-                """,
-                (memory_type, session_id, content),
-            ).fetchone()
-
-            if existing:
-                return False
-
             connection.execute(
                 """
-                INSERT INTO memories (session_id, memory_type, content)
-                VALUES (?, ?, ?)
+                INSERT INTO memories (
+                    session_id,
+                    memory_type,
+                    content,
+                    weight,
+                    embedding_text,
+                    embedding_model,
+                    embedding_dimensions,
+                    embedding
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (session_id, memory_type, content),
+                (
+                    session_id,
+                    memory_type,
+                    content,
+                    weight,
+                    embedding_text,
+                    embedding_model,
+                    embedding_dimensions,
+                    embedding,
+                ),
             )
 
         self.enforce_limits(session_id)
@@ -119,7 +195,16 @@ class MemoryStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, session_id, memory_type, content, created_at
+                SELECT
+                    id,
+                    session_id,
+                    memory_type,
+                    content,
+                    weight,
+                    embedding_text,
+                    embedding_model,
+                    embedding_dimensions,
+                    created_at
                 FROM memories
                 WHERE session_id = ?
                 ORDER BY

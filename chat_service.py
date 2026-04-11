@@ -7,10 +7,24 @@ from openai import OpenAI
 
 class OpenAIChatService:
     def __init__(self):
+        self.config = self._load_config()
         self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.model = self.config.get("CHAT_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.client = OpenAI(api_key=self.api_key) if self.api_key else None
         self.prompts_dir = Path(__file__).parent / "prompts"
+
+    def _load_config(self):
+        config_path = Path(__file__).parent / "config.txt"
+        config = {}
+
+        for raw_line in config_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            config[key.strip()] = value.strip()
+
+        return config
 
     def _require_client(self):
         if not self.client:
@@ -20,6 +34,20 @@ class OpenAIChatService:
     def _load_prompt(self, file_name):
         prompt_path = self.prompts_dir / file_name
         return prompt_path.read_text(encoding="utf-8").strip()
+
+    def build_embedding(self, text, model, dimensions):
+        client = self._require_client()
+        request = {
+            "model": model,
+            "input": text,
+            "encoding_format": "float",
+        }
+
+        if dimensions:
+            request["dimensions"] = dimensions
+
+        response = client.embeddings.create(**request)
+        return response.data[0].embedding
 
     def _build_personalization_block(self, memories):
         if not memories:

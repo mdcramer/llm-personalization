@@ -1,7 +1,14 @@
 # Prototype configuration
 # Edit the values below as needed. Restart Flask after changing this file.
 
+# Chat model for the main assistant and extraction calls.
+CHAT_MODEL=gpt-4o-mini
+
 # Parameters to prevent 'memories' from growing unbounded.
 MEMORY_TTL_DAYS=7
 MAX_MEMORIES_PER_SESSION=200
 MAX_TOTAL_MEMORIES=5000
+
+# Embedding settings for stored memories.
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=256

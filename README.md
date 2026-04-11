@@ -66,6 +66,9 @@ Right now it includes:
 - `MEMORY_TTL_DAYS`
 - `MAX_MEMORIES_PER_SESSION`
 - `MAX_TOTAL_MEMORIES`
+- `CHAT_MODEL`
+- `EMBEDDING_MODEL`
+- `EMBEDDING_DIMENSIONS`
 
 Restart Flask after changing `config.txt` so the updated values are loaded.
 
