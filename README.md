@@ -69,6 +69,17 @@ Right now it includes:
 
 Restart Flask after changing `config.txt` so the updated values are loaded.
 
+## Railway deployment notes
+
+For Railway deployment:
+
+- the app can be started with the included `Procfile`
+- set `OPENAI_API_KEY` in Railway variables
+- optionally set `OPENAI_MODEL`
+- set `MEMORY_DB_PATH=/data/memory.db` if you attach a Railway volume mounted at `/data`
+
+Using a persistent volume is recommended if you want SQLite memories to survive redeploys and restarts.
+
 ## Prompt files
 
 Prompt templates live in the `prompts/` folder:

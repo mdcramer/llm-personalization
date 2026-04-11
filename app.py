@@ -10,7 +10,7 @@ from memory import MemoryStore
 app = Flask(__name__)
 
 chat_service = OpenAIChatService()
-memory_store = MemoryStore()
+memory_store = MemoryStore(os.getenv("MEMORY_DB_PATH", "memory.db"))
 SESSION_COOKIE_NAME = "chatbot_session_id"
 
 
