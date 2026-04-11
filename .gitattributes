@@ -1,2 +1,2 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Keep text files in CRLF format for this Windows-first repo
+* text=auto eol=crlf
