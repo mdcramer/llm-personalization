@@ -74,6 +74,7 @@ def chat():
     payload = request.get_json(silent=True) or {}
     message = (payload.get("message") or "").strip()
     history = payload.get("history") or []
+    memories = memory_store.list_memories(session_id)
 
     if not message:
         response = jsonify({"error": "Message is required."})
@@ -81,7 +82,7 @@ def chat():
         return attach_session_cookie(response, session_id, is_new_session)
 
     try:
-        reply = chat_service.get_reply(message=message, history=history)
+        reply = chat_service.get_reply(message=message, history=history, memories=memories)
     except RuntimeError as exc:
         response = jsonify({"error": str(exc)})
         response.status_code = 500
@@ -105,11 +106,12 @@ def chat():
         print(f"[memory] extraction skipped for {session_id[:8]} due to error: {exc}")
 
     memory_store.enforce_limits(session_id)
+    updated_memories = memory_store.list_memories(session_id)
     response = jsonify(
         {
             "reply": reply,
             "extracted": extraction_result,
-            "memories": memory_store.list_memories(session_id),
+            "memories": updated_memories,
             "limits": memory_store.get_limits(),
         }
     )

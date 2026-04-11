@@ -274,8 +274,20 @@
       .controls {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 16px;
+      }
+
+      .status-group {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .composer-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
       }
 
       .status {
@@ -391,8 +403,13 @@
             <label for="prompt">Message</label>
             <textarea id="prompt" placeholder="Type your message here..."></textarea>
             <div class="controls">
-              <div id="status" class="status"></div>
-              <button id="sendButton" type="button">Send</button>
+              <button id="newChatButton" class="secondary-button" type="button">New chat</button>
+              <div class="status-group">
+                <div id="status" class="status"></div>
+                <div class="composer-actions">
+                  <button id="sendButton" type="button">Send</button>
+                </div>
+              </div>
             </div>
           </section>
         </section>
@@ -410,8 +427,11 @@
       const dislikesList = document.getElementById("dislikesList");
       const clearMemoriesButton = document.getElementById("clearMemoriesButton");
       const memoryCount = document.getElementById("memoryCount");
+      const newChatButton = document.getElementById("newChatButton");
 
       const history = [];
+      const initialAssistantMessage =
+        "Hello. This is the bare-bones prototype. Ask me anything to test the loop.";
 
       function appendMessage(role, content) {
         const element = document.createElement("div");
@@ -419,6 +439,11 @@
         element.textContent = content;
         messagesContainer.appendChild(element);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      function resetChatTranscript() {
+        messagesContainer.innerHTML = "";
+        appendMessage("assistant", initialAssistantMessage);
       }
 
       function renderMemories(memories) {
@@ -484,6 +509,13 @@
         }
       }
 
+      function startNewChat() {
+        history.length = 0;
+        statusLabel.textContent = "Started a fresh chat. Stored memories still apply.";
+        resetChatTranscript();
+        promptInput.focus();
+      }
+
       async function sendMessage() {
         const message = promptInput.value.trim();
         if (!message) {
@@ -539,6 +571,7 @@
 
       sendButton.addEventListener("click", sendMessage);
       clearMemoriesButton.addEventListener("click", clearMemories);
+      newChatButton.addEventListener("click", startNewChat);
 
       promptInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {

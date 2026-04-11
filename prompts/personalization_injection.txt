@@ -1,5 +1,6 @@
-Future placeholder for prompt injection based on stored memories.
+Use the stored memories below to personalize your reply when they are relevant.
+Do not mention the memory list explicitly unless the user asks about it.
+If a memory is not relevant to the current request, ignore it.
 
-The eventual goal of this file is to describe how relevant memories should be inserted into the chat prompt so the assistant can personalize its responses.
-
-For now, this file is not yet used by the application.
+Stored memories:
+{{MEMORIES}}

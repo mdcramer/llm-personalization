@@ -21,14 +21,44 @@ class OpenAIChatService:
         prompt_path = self.prompts_dir / file_name
         return prompt_path.read_text(encoding="utf-8").strip()
 
-    def get_reply(self, message, history=None):
+    def _build_personalization_block(self, memories):
+        if not memories:
+            return ""
+
+        template = self._load_prompt("personalization_injection.txt")
+        lines = []
+
+        likes = [memory["content"] for memory in memories if memory.get("memory_type") == "like"]
+        dislikes = [memory["content"] for memory in memories if memory.get("memory_type") == "dislike"]
+
+        if likes:
+            lines.append("Known user likes:")
+            lines.extend(f"- {item}" for item in likes)
+
+        if dislikes:
+            lines.append("Known user dislikes:")
+            lines.extend(f"- {item}" for item in dislikes)
+
+        memory_text = "\n".join(lines).strip()
+        if not memory_text:
+            return ""
+
+        return template.replace("{{MEMORIES}}", memory_text)
+
+    def get_reply(self, message, history=None, memories=None):
         history = history or []
+        memories = memories or []
         client = self._require_client()
+        system_prompt = self._load_prompt("chat_system.txt")
+        personalization_block = self._build_personalization_block(memories)
+
+        if personalization_block:
+            system_prompt = f"{system_prompt}\n\n{personalization_block}"
 
         messages = [
             {
                 "role": "system",
-                "content": self._load_prompt("chat_system.txt"),
+                "content": system_prompt,
             }
         ]
 
