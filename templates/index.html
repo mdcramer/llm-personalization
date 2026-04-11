@@ -63,14 +63,70 @@
 
       .sidebar h2,
       .chat-panel h2 {
-        margin: 0 0 8px;
+        margin: 0;
         font-size: 1.4rem;
       }
 
-      .sidebar p,
-      .chat-panel p {
-        margin: 0;
-        color: var(--muted);
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .info-button {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        border-radius: 50%;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        line-height: 1;
+        background: #d9d1c5;
+        color: #4d453c;
+        position: relative;
+      }
+
+      .info-button:hover {
+        background: #c9c0b3;
+      }
+
+      .tooltip {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 10px);
+        transform: translateX(-50%);
+        width: 220px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: #2a241e;
+        color: #fff8ef;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        text-align: left;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+        z-index: 20;
+      }
+
+      .tooltip::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -6px;
+        width: 12px;
+        height: 12px;
+        background: #2a241e;
+        transform: translateX(-50%) rotate(45deg);
+      }
+
+      .info-button:hover .tooltip,
+      .info-button:focus-visible .tooltip {
+        opacity: 1;
       }
 
       .memory-card {
@@ -165,6 +221,8 @@
       .header p {
         margin: 0;
         color: var(--muted);
+        line-height: 1.5;
+        max-width: 780px;
       }
 
       .messages {
@@ -269,14 +327,25 @@
     <main class="shell">
       <section class="header">
         <h1>Personalized Chatbot Prototype</h1>
-        <p>Version 0.1 is a simple passthrough to the OpenAI API.</p>
+        <p>
+          This is a demonstration of how memories, when properly structured and
+          configured, can be used to personalize a chatbot experience. The
+          backend is powered by OpenAI GPT 4o-mini.
+        </p>
       </section>
 
       <section class="content">
         <aside class="sidebar">
           <div class="memory-scroll">
-            <h2>Memories</h2>
-            <p>Representation of stored memories used to personalize the chat.</p>
+            <div class="section-title">
+              <h2>Memories</h2>
+              <button class="info-button" type="button" aria-label="About memories">
+                i
+                <span class="tooltip">
+                  Representation of stored memories used to personalize the chat.
+                </span>
+              </button>
+            </div>
             <div id="memoryEmptyState" class="memory-card">
               Memories will appear here once we start extracting and organizing them.
             </div>
@@ -301,8 +370,15 @@
 
         <section class="chat-panel">
           <div class="chat-heading">
-            <h2>Chat</h2>
-            <p>Chat with the prototype and inspect memory behavior alongside it.</p>
+            <div class="section-title">
+              <h2>Chat</h2>
+              <button class="info-button" type="button" aria-label="About chat">
+                i
+                <span class="tooltip">
+                  Chat with the prototype and inspect memory behavior alongside it.
+                </span>
+              </button>
+            </div>
           </div>
 
           <section id="messages" class="messages">
