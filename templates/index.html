@@ -99,7 +99,15 @@
         margin-top: auto;
         padding-top: 24px;
         display: flex;
+        align-items: center;
+        gap: 12px;
         justify-content: flex-end;
+      }
+
+      .memory-count {
+        color: var(--muted);
+        font-size: 0.9rem;
+        white-space: nowrap;
       }
 
       .secondary-button {
@@ -284,6 +292,7 @@
             </div>
           </div>
           <div class="sidebar-actions">
+            <div id="memoryCount" class="memory-count">0 / 0</div>
             <button id="clearMemoriesButton" class="secondary-button" type="button">
               Clear memories
             </button>
@@ -324,6 +333,7 @@
       const likesList = document.getElementById("likesList");
       const dislikesList = document.getElementById("dislikesList");
       const clearMemoriesButton = document.getElementById("clearMemoriesButton");
+      const memoryCount = document.getElementById("memoryCount");
 
       const history = [];
 
@@ -359,11 +369,17 @@
         memoryGroups.hidden = !hasMemories;
       }
 
+      function renderMemoryCount(memories, limits) {
+        const maxPerSession = limits?.max_memories_per_session ?? 0;
+        memoryCount.textContent = `${memories.length} / ${maxPerSession}`;
+      }
+
       async function loadMemories() {
         try {
           const response = await fetch("/memories");
           const data = await response.json();
           renderMemories(data.memories || []);
+          renderMemoryCount(data.memories || [], data.limits || {});
         } catch (error) {
           console.error("Failed to load memories:", error);
         }
@@ -383,6 +399,7 @@
           }
 
           renderMemories(data.memories || []);
+          renderMemoryCount(data.memories || [], data.limits || {});
         } catch (error) {
           appendMessage("assistant", `Error: ${error.message}`);
           statusLabel.textContent = "Could not clear memories.";
@@ -433,6 +450,7 @@
           appendMessage("assistant", data.reply);
           history.push({ role: "assistant", content: data.reply });
           renderMemories(data.memories || []);
+          renderMemoryCount(data.memories || [], data.limits || {});
           statusLabel.textContent = "";
         } catch (error) {
           appendMessage("assistant", `Error: ${error.message}`);

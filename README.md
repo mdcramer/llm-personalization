@@ -5,7 +5,7 @@ This is a very small Flask-based chatbot prototype with:
 - a single HTML/JavaScript frontend
 - a Flask backend
 - an OpenAI Chat Completions passthrough
-- a SQLite stub for future memory features
+- SQLite-backed memories scoped to a browser session
 - prompt templates stored as editable text files
 
 ## 1. Install Python
@@ -52,8 +52,22 @@ Version 0.1 is intentionally simple:
 - no streaming
 - no persistent chat history
 - no memory injection yet
+- memories are per browser session, not shared across users
+- memories expire and are capped to keep the demo DB from growing without bounds
 
 The SQLite database is included now so we can add personalization later without changing the project shape too much.
+
+## Configuration
+
+Prototype tuning values live in `config.txt`.
+
+Right now it includes:
+
+- `MEMORY_TTL_DAYS`
+- `MAX_MEMORIES_PER_SESSION`
+- `MAX_TOTAL_MEMORIES`
+
+Restart Flask after changing `config.txt` so the updated values are loaded.
 
 ## Prompt files
 
