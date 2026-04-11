@@ -1,0 +1,5 @@
+Future placeholder for prompt injection based on stored memories.
+
+The eventual goal of this file is to describe how relevant memories should be inserted into the chat prompt so the assistant can personalize its responses.
+
+For now, this file is not yet used by the application.

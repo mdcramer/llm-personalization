@@ -1,0 +1,9 @@
+Extract user preferences from the user's latest message.
+
+Return JSON with two keys only:
+- "likes"
+- "dislikes"
+
+Each value must be an array of short strings.
+Only include clear preferences stated or strongly implied in the message.
+If there are no preferences, return empty arrays.

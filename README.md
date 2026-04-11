@@ -6,6 +6,7 @@ This is a very small Flask-based chatbot prototype with:
 - a Flask backend
 - an OpenAI Chat Completions passthrough
 - a SQLite stub for future memory features
+- prompt templates stored as editable text files
 
 ## 1. Install Python
 
@@ -53,3 +54,13 @@ Version 0.1 is intentionally simple:
 - no memory injection yet
 
 The SQLite database is included now so we can add personalization later without changing the project shape too much.
+
+## Prompt files
+
+Prompt templates live in the `prompts/` folder:
+
+- `chat_system.txt` for the main assistant behavior
+- `memory_extraction.txt` for extracting likes/dislikes
+- `personalization_injection.txt` as a placeholder for future prompt injection
+
+These files are read by the backend at runtime, so you can inspect and edit them directly.

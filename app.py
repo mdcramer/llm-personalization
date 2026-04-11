@@ -17,6 +17,18 @@ def index():
     return render_template("index.html")
 
 
+@app.get("/memories")
+def memories():
+    return jsonify({"memories": memory_store.list_memories()})
+
+
+@app.post("/memories/clear")
+def clear_memories():
+    memory_store.clear_memories()
+    print("[memory] cleared all memories")
+    return jsonify({"ok": True, "memories": []})
+
+
 @app.post("/chat")
 def chat():
     payload = request.get_json(silent=True) or {}
@@ -30,8 +42,29 @@ def chat():
         reply = chat_service.get_reply(message=message, history=history)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 500
+    except Exception as exc:
+        return jsonify({"error": f"Unexpected server error: {exc}"}), 500
 
-    return jsonify({"reply": reply})
+    extraction_result = {"likes": [], "dislikes": []}
+
+    try:
+        extraction_result = chat_service.extract_preferences(message)
+        for item in extraction_result["likes"]:
+            if memory_store.add_memory("like", item):
+                print(f"[memory] stored like: {item}")
+        for item in extraction_result["dislikes"]:
+            if memory_store.add_memory("dislike", item):
+                print(f"[memory] stored dislike: {item}")
+    except Exception as exc:
+        print(f"[memory] extraction skipped due to error: {exc}")
+
+    return jsonify(
+        {
+            "reply": reply,
+            "extracted": extraction_result,
+            "memories": memory_store.list_memories(),
+        }
+    )
 
 
 if __name__ == "__main__":

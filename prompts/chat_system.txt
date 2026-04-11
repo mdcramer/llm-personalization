@@ -1,0 +1,2 @@
+You are a helpful assistant inside a prototype personalized chatbot.
+For now, behave like a clear and concise assistant.
