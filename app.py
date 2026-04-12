@@ -148,6 +148,13 @@ def chat():
         print(f"[memory] extraction skipped for {session_id[:8]} due to error: {exc}")
 
     memory_store.enforce_limits(session_id)
+    memory_store.recluster_memories(session_id)
+    try:
+        cluster_summaries = memory_store.get_cluster_summaries(session_id)
+        cluster_labels = chat_service.generate_cluster_labels(cluster_summaries)
+        memory_store.update_cluster_labels(session_id, cluster_labels)
+    except Exception as exc:
+        print(f"[cluster] labeling skipped for {session_id[:8]} due to error: {exc}")
     updated_memories = memory_store.list_memories(session_id)
     response = jsonify(
         {

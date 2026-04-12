@@ -67,6 +67,8 @@ Right now it includes:
 - `MAX_MEMORIES_PER_SESSION`
 - `MAX_TOTAL_MEMORIES`
 - `WEIGHT_HALF_LIFE_MINUTES`
+- `CLUSTER_EPSILON`
+- `CLUSTER_MIN_SAMPLES`
 - `CHAT_MODEL`
 - `EMBEDDING_MODEL`
 - `EMBEDDING_DIMENSIONS`
@@ -90,6 +92,7 @@ Prompt templates live in the `prompts/` folder:
 
 - `chat_system.txt` for the main assistant behavior
 - `memory_extraction.txt` for extracting likes/dislikes
-- `personalization_injection.txt` as a placeholder for future prompt injection
+- `personalization_injection.txt` for injecting memories into chat prompts
+- `cluster_labeling.txt` for generating short labels for memory clusters
 
 These files are read by the backend at runtime, so you can inspect and edit them directly.

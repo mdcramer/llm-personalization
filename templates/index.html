@@ -46,7 +46,7 @@
 
       .content {
         display: grid;
-        grid-template-columns: minmax(260px, 320px) 1fr;
+        grid-template-columns: minmax(250px, 320px) 1fr;
         min-height: 0;
       }
 
@@ -147,7 +147,7 @@
       .memory-scroll {
         min-height: 0;
         overflow-y: auto;
-        padding-right: 8px;
+        padding-right: 2px;
       }
 
       .sidebar-actions {
@@ -178,7 +178,7 @@
         margin-top: 24px;
         border-collapse: collapse;
         table-layout: fixed;
-        font-size: 0.95rem;
+        font-size: 0.86rem;
       }
 
       .memory-table td {
@@ -186,15 +186,17 @@
         border-bottom: 1px solid var(--border);
         text-align: left;
         vertical-align: top;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       .memory-table td:first-child {
-        width: 80px;
+        width: 62px;
         font-variant-numeric: tabular-nums;
         font-feature-settings: "tnum";
         font-family: Consolas, "SFMono-Regular", "Courier New", monospace;
         text-align: right;
-        padding-right: 8px;
+        padding-right: 6px;
       }
 
       .weight-positive {
@@ -203,6 +205,24 @@
 
       .weight-negative {
         color: #8a2f2f;
+      }
+
+      .cluster-row td {
+        padding-top: 14px;
+        padding-bottom: 4px;
+        border-bottom: none;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .cluster-label {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .memory-row td:last-child {
+        color: var(--muted);
+        font-size: 0.79rem;
       }
 
       .chat-panel {
@@ -229,7 +249,11 @@
         margin: 0;
         color: var(--muted);
         line-height: 1.5;
-        max-width: 780px;
+        max-width: 900px;
+      }
+
+      .header a {
+        color: var(--accent);
       }
 
       .messages {
@@ -387,7 +411,9 @@
         <p>
           This is a demonstration of how memories, when properly structured and
           configured, can be used to personalize a chatbot experience. The
-          backend is powered by OpenAI GPT-4o mini.
+          backend is powered by OpenAI GPT-4o mini. See
+          <a href="https://mdcramer.github.io" target="_blank" rel="noreferrer">mdcramer.github.io</a>
+          for more.
         </p>
       </section>
 
@@ -494,39 +520,111 @@
       function renderMemories(memories) {
         memoryTableBody.innerHTML = "";
 
-        const memoryMap = new Map();
-
-        for (const memory of memories) {
-          const key = memory.embedding_text || memory.content || "";
-          const current = memoryMap.get(key) || { embedding_text: key, weight: 0 };
-          current.weight += Number(memory.weight ?? 0);
-          memoryMap.set(key, current);
+        function formatWeightDisplay(value) {
+          const numericValue = Number(value ?? 0);
+          const clippedValue = Math.max(-99.99, Math.min(99.99, numericValue));
+          const absoluteWeight = Math.abs(clippedValue).toFixed(2);
+          return `${clippedValue >= 0 ? "+" : "-"}${absoluteWeight}`;
         }
 
-        const sortedMemories = [...memoryMap.values()].sort((a, b) => {
-          const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
-          if (weightDiff !== 0) {
-            return weightDiff;
+        const clusterMap = new Map();
+
+        for (const memory of memories) {
+          const clusterKey = memory.cluster_id === null || memory.cluster_id === undefined
+            ? "unclustered"
+            : String(memory.cluster_id);
+          const embeddingText = memory.embedding_text || memory.content || "";
+
+          if (!clusterMap.has(clusterKey)) {
+            clusterMap.set(clusterKey, {
+              clusterId: memory.cluster_id,
+              clusterLabel: memory.cluster_label || "",
+              score: 0,
+              entries: new Map(),
+            });
           }
 
-          return (a.embedding_text || "").localeCompare(b.embedding_text || "");
+          const cluster = clusterMap.get(clusterKey);
+          if (!cluster.clusterLabel && memory.cluster_label) {
+            cluster.clusterLabel = memory.cluster_label;
+          }
+          cluster.score += Number(memory.weight ?? 0);
+
+          const entry = cluster.entries.get(embeddingText) || {
+            embedding_text: embeddingText,
+            weight: 0,
+            count: 0,
+          };
+          entry.weight += Number(memory.weight ?? 0);
+          entry.count += 1;
+          cluster.entries.set(embeddingText, entry);
+        }
+
+        const clusters = [...clusterMap.values()].map((cluster) => {
+          const entries = [...cluster.entries.values()].sort((a, b) => {
+            const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
+            if (weightDiff !== 0) {
+              return weightDiff;
+            }
+
+            return (a.embedding_text || "").localeCompare(b.embedding_text || "");
+          });
+
+          return {
+            ...cluster,
+            label: cluster.clusterId === -1
+              ? "Unclustered"
+              : (cluster.clusterLabel || entries[0]?.embedding_text || `Cluster ${cluster.clusterId}`),
+            entries,
+          };
+        }).sort((a, b) => {
+          if (a.clusterId === -1 && b.clusterId !== -1) {
+            return 1;
+          }
+          if (a.clusterId !== -1 && b.clusterId === -1) {
+            return -1;
+          }
+
+          const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+          if (scoreDiff !== 0) {
+            return scoreDiff;
+          }
+
+          return (a.label || "").localeCompare(b.label || "");
         });
 
-        for (const memory of sortedMemories) {
-          const row = document.createElement("tr");
-          const weightCell = document.createElement("td");
-          const textCell = document.createElement("td");
-          const weight = Number(memory.weight ?? 0);
-          const absoluteWeight = Math.abs(weight).toFixed(2);
-          const formattedWeight = `${weight >= 0 ? "+" : "-"}${absoluteWeight}`;
+        for (const cluster of clusters) {
+          const clusterRow = document.createElement("tr");
+          clusterRow.className = "cluster-row";
 
-          weightCell.textContent = formattedWeight;
-          weightCell.className = weight >= 0 ? "weight-positive" : "weight-negative";
-          textCell.textContent = memory.embedding_text || memory.content || "";
+          const clusterScoreCell = document.createElement("td");
+          const clusterLabelCell = document.createElement("td");
 
-          row.appendChild(weightCell);
-          row.appendChild(textCell);
-          memoryTableBody.appendChild(row);
+          clusterScoreCell.textContent = formatWeightDisplay(cluster.score);
+          clusterScoreCell.className = cluster.score >= 0 ? "weight-positive" : "weight-negative";
+          clusterLabelCell.textContent = cluster.label;
+          clusterLabelCell.className = "cluster-label";
+
+          clusterRow.appendChild(clusterScoreCell);
+          clusterRow.appendChild(clusterLabelCell);
+          memoryTableBody.appendChild(clusterRow);
+
+          for (const memory of cluster.entries) {
+            const row = document.createElement("tr");
+            row.className = "memory-row";
+            const weightCell = document.createElement("td");
+            const textCell = document.createElement("td");
+            const weight = Number(memory.weight ?? 0);
+            const countSuffix = memory.count > 1 ? ` (x${memory.count})` : "";
+
+            weightCell.textContent = formatWeightDisplay(weight);
+            weightCell.className = weight >= 0 ? "weight-positive" : "weight-negative";
+            textCell.textContent = `${memory.embedding_text || memory.content || ""}${countSuffix}`;
+
+            row.appendChild(weightCell);
+            row.appendChild(textCell);
+            memoryTableBody.appendChild(row);
+          }
         }
 
         const hasMemories = memories.length > 0;

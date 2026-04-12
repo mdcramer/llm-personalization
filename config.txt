@@ -8,7 +8,11 @@ CHAT_MODEL=gpt-4o-mini
 MEMORY_TTL_DAYS=7
 MAX_MEMORIES_PER_SESSION=200
 MAX_TOTAL_MEMORIES=5000
-WEIGHT_HALF_LIFE_MINUTES=30
+WEIGHT_HALF_LIFE_MINUTES=60
+
+# Embedding clustering hyperparameters for DBSCAN
+CLUSTER_EPSILON=0.50
+CLUSTER_MIN_SAMPLES=2
 
 # Embedding settings for stored memories.
 EMBEDDING_MODEL=text-embedding-3-small

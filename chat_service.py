@@ -49,6 +49,56 @@ class OpenAIChatService:
         response = client.embeddings.create(**request)
         return response.data[0].embedding
 
+    def generate_cluster_labels(self, clusters):
+        if not clusters:
+            return {}
+
+        client = self._require_client()
+        prompt = self._load_prompt("cluster_labeling.txt")
+
+        payload = []
+        for cluster in clusters:
+            payload.append(
+                {
+                    "cluster_id": cluster["cluster_id"],
+                    "cluster_score": cluster["cluster_score"],
+                    "memories": [
+                        {
+                            "text": memory["embedding_text"],
+                            "score": memory["weight"],
+                        }
+                        for memory in cluster["memories"]
+                    ],
+                }
+            )
+
+        response = client.chat.completions.create(
+            model=self.model,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": prompt,
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps({"clusters": payload}),
+                },
+            ],
+        )
+
+        content = response.choices[0].message.content or "{}"
+        parsed = json.loads(content)
+        raw_labels = parsed.get("descriptions", {})
+        labels = {}
+
+        if isinstance(raw_labels, dict):
+            for key, value in raw_labels.items():
+                if isinstance(value, str) and value.strip():
+                    labels[str(key)] = value.strip()
+
+        return labels
+
     def _build_personalization_block(self, memories):
         if not memories:
             return ""

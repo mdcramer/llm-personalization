@@ -1,4 +1,6 @@
 import math
+import json
+import random
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +54,12 @@ class MemoryStore:
     def get_decay_settings(self):
         return {
             "weight_half_life_minutes": self._config_int("WEIGHT_HALF_LIFE_MINUTES", 30),
+        }
+
+    def get_clustering_settings(self):
+        return {
+            "cluster_epsilon": float(self.config.get("CLUSTER_EPSILON", "0.15")),
+            "cluster_min_samples": self._config_int("CLUSTER_MIN_SAMPLES", 2),
         }
 
     def _connect(self):
@@ -151,6 +159,22 @@ class MemoryStore:
                         """
                     )
 
+            if "cluster_id" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN cluster_id INTEGER
+                    """
+                )
+
+            if "cluster_label" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN cluster_label TEXT
+                    """
+                )
+
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_memories_session_created
@@ -161,6 +185,12 @@ class MemoryStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_memories_created
                 ON memories (created_at DESC, id DESC)
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_memories_session_cluster
+                ON memories (session_id, cluster_id)
                 """
             )
 
@@ -223,6 +253,8 @@ class MemoryStore:
                     embedding_text,
                     embedding_model,
                     embedding_dimensions,
+                    cluster_id,
+                    cluster_label,
                     created_at
                 FROM memories
                 WHERE session_id = ?
@@ -257,6 +289,201 @@ class MemoryStore:
                 (session_id,),
             )
 
+    def get_cluster_summaries(self, session_id):
+        memories = self.list_memories(session_id)
+        cluster_map = {}
+
+        for memory in memories:
+            cluster_id = memory.get("cluster_id")
+            if cluster_id in (None, -1):
+                continue
+
+            bucket = cluster_map.setdefault(
+                cluster_id,
+                {
+                    "cluster_id": cluster_id,
+                    "cluster_score": 0.0,
+                    "memories": {},
+                },
+            )
+            bucket["cluster_score"] += float(memory.get("weight", 0))
+
+            embedding_text = memory.get("embedding_text") or memory.get("content") or ""
+            entry = bucket["memories"].setdefault(
+                embedding_text,
+                {
+                    "embedding_text": embedding_text,
+                    "weight": 0.0,
+                },
+            )
+            entry["weight"] += float(memory.get("weight", 0))
+
+        summaries = []
+        for cluster in cluster_map.values():
+            entries = list(cluster["memories"].values())
+            entries.sort(
+                key=lambda item: (
+                    -(item["weight"]),
+                    item["embedding_text"],
+                )
+            )
+            summaries.append(
+                {
+                    "cluster_id": cluster["cluster_id"],
+                    "cluster_score": cluster["cluster_score"],
+                    "memories": entries,
+                }
+            )
+
+        summaries.sort(key=lambda item: (-item["cluster_score"], item["cluster_id"]))
+        return summaries
+
+    def update_cluster_labels(self, session_id, labels):
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE memories
+                SET cluster_label = NULL
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            )
+
+            for cluster_id, label in labels.items():
+                connection.execute(
+                    """
+                    UPDATE memories
+                    SET cluster_label = ?
+                    WHERE session_id = ?
+                      AND cluster_id = ?
+                    """,
+                    (label, session_id, int(cluster_id)),
+                )
+
+    def recluster_memories(self, session_id):
+        settings = self.get_clustering_settings()
+        epsilon = settings["cluster_epsilon"]
+        min_samples = max(1, settings["cluster_min_samples"])
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, embedding
+                FROM memories
+                WHERE session_id = ?
+                  AND embedding IS NOT NULL
+                ORDER BY id
+                """,
+                (session_id,),
+            ).fetchall()
+
+            memories = []
+            for row in rows:
+                embedding_raw = row["embedding"]
+                if not embedding_raw:
+                    continue
+                memories.append(
+                    {
+                        "id": row["id"],
+                        "embedding": json.loads(embedding_raw),
+                    }
+                )
+
+            labels = self._dbscan(memories, epsilon, min_samples)
+
+            connection.execute(
+                """
+                UPDATE memories
+                SET cluster_id = NULL
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            )
+
+            for memory_id, cluster_id in labels.items():
+                connection.execute(
+                    """
+                    UPDATE memories
+                    SET cluster_id = ?
+                    WHERE id = ?
+                    """,
+                    (cluster_id, memory_id),
+                )
+
+    def _cosine_distance(self, vector_a, vector_b):
+        dot = sum(a * b for a, b in zip(vector_a, vector_b))
+        norm_a = math.sqrt(sum(a * a for a in vector_a))
+        norm_b = math.sqrt(sum(b * b for b in vector_b))
+        if norm_a == 0 or norm_b == 0:
+            return 1.0
+        similarity = dot / (norm_a * norm_b)
+        similarity = max(-1.0, min(1.0, similarity))
+        return 1.0 - similarity
+
+    def _region_query(self, memories, index, epsilon):
+        neighbors = []
+        for candidate_index, candidate in enumerate(memories):
+            distance = self._cosine_distance(memories[index]["embedding"], candidate["embedding"])
+            if distance <= epsilon:
+                neighbors.append(candidate_index)
+        return neighbors
+
+    def _dbscan(self, memories, epsilon, min_samples):
+        labels = {}
+        visited = set()
+        cluster_id = 0
+
+        for index, memory in enumerate(memories):
+            if index in visited:
+                continue
+
+            visited.add(index)
+            neighbors = self._region_query(memories, index, epsilon)
+            if len(neighbors) < min_samples:
+                labels[memory["id"]] = -1
+                continue
+
+            labels[memory["id"]] = cluster_id
+            seeds = list(neighbors)
+
+            while seeds:
+                neighbor_index = seeds.pop()
+                neighbor_memory = memories[neighbor_index]
+
+                if neighbor_index not in visited:
+                    visited.add(neighbor_index)
+                    neighbor_neighbors = self._region_query(memories, neighbor_index, epsilon)
+                    if len(neighbor_neighbors) >= min_samples:
+                        for candidate in neighbor_neighbors:
+                            if candidate not in seeds:
+                                seeds.append(candidate)
+
+                if neighbor_memory["id"] not in labels or labels[neighbor_memory["id"]] == -1:
+                    labels[neighbor_memory["id"]] = cluster_id
+
+            cluster_id += 1
+
+        return labels
+
+    def _select_ids_to_delete(self, rows, keep_count):
+        if len(rows) <= keep_count:
+            return []
+
+        ranked_rows = []
+        for row in rows:
+            decayed_weight = self._apply_weight_decay(row["weight"], row["created_at"])
+            ranked_rows.append(
+                {
+                    "id": row["id"],
+                    "score": abs(decayed_weight),
+                    "random_tiebreak": random.random(),
+                }
+            )
+
+        ranked_rows.sort(key=lambda item: (item["score"], item["random_tiebreak"]))
+        delete_count = len(rows) - keep_count
+        return [item["id"] for item in ranked_rows[:delete_count]]
+
     def enforce_limits(self, session_id):
         limits = self.get_limits()
         memory_ttl_days = limits["memory_ttl_days"]
@@ -270,28 +497,32 @@ class MemoryStore:
                 WHERE created_at < datetime('now', '-{memory_ttl_days} days')
                 """
             )
-            connection.execute(
+            session_rows = connection.execute(
                 """
-                DELETE FROM memories
-                WHERE id IN (
-                    SELECT id
-                    FROM memories
-                    WHERE session_id = ?
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT -1 OFFSET ?
-                )
+                SELECT id, weight, created_at
+                FROM memories
+                WHERE session_id = ?
                 """,
-                (session_id, max_memories_per_session),
-            )
-            connection.execute(
+                (session_id,),
+            ).fetchall()
+            session_ids_to_delete = self._select_ids_to_delete(session_rows, max_memories_per_session)
+            if session_ids_to_delete:
+                placeholders = ",".join("?" for _ in session_ids_to_delete)
+                connection.execute(
+                    f"DELETE FROM memories WHERE id IN ({placeholders})",
+                    session_ids_to_delete,
+                )
+
+            all_rows = connection.execute(
                 """
-                DELETE FROM memories
-                WHERE id IN (
-                    SELECT id
-                    FROM memories
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT -1 OFFSET ?
+                SELECT id, weight, created_at
+                FROM memories
+                """
+            ).fetchall()
+            global_ids_to_delete = self._select_ids_to_delete(all_rows, max_total_memories)
+            if global_ids_to_delete:
+                placeholders = ",".join("?" for _ in global_ids_to_delete)
+                connection.execute(
+                    f"DELETE FROM memories WHERE id IN ({placeholders})",
+                    global_ids_to_delete,
                 )
-                """,
-                (max_total_memories,),
-            )

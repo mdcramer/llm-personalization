@@ -1,0 +1,25 @@
+You write short descriptions for memory clusters in a personalized chatbot prototype.
+
+You will receive JSON with a list of clusters. Each cluster includes:
+- cluster_id
+- cluster_score
+- memories: a list of memory texts with signed scores
+
+Interpretation of scores:
+- Positive scores mean positive preference evidence.
+- Negative scores mean negative preference evidence.
+- Larger absolute values mean stronger evidence.
+- Use the scores to judge which concept is most central to the cluster.
+
+Return JSON with one top-level key only:
+- "descriptions": an object mapping cluster_id to a short description
+
+Rules:
+- Each description should be less than 12 words.
+- Write a short natural-language descriptive phrase, not just a terse label.
+- Capture the shared concept of the cluster, while taking the weighted evidence into account.
+- Do not mention scores, positivity, negativity or uncertainty explicitly.
+- Prefer descriptions that will be useful later for prompt injection.
+- If the cluster is about strawberries, a description like "preference related to strawberries in food" is better than "strawberries".
+- Do not invent concepts not supported by the memories.
+- Return valid JSON only.
