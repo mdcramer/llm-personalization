@@ -1,4 +1,6 @@
+import math
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -47,10 +49,27 @@ class MemoryStore:
             "embedding_dimensions": self._config_int("EMBEDDING_DIMENSIONS", 256),
         }
 
+    def get_decay_settings(self):
+        return {
+            "weight_half_life_minutes": self._config_int("WEIGHT_HALF_LIFE_MINUTES", 30),
+        }
+
     def _connect(self):
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         return connection
+
+    def _apply_weight_decay(self, weight, created_at):
+        half_life_minutes = self.get_decay_settings()["weight_half_life_minutes"]
+        if half_life_minutes <= 0:
+            return weight
+
+        created = datetime.fromisoformat(created_at.replace(" ", "T")).replace(tzinfo=timezone.utc)
+        age_minutes = max(
+            0.0,
+            (datetime.now(timezone.utc) - created).total_seconds() / 60.0,
+        )
+        return weight * math.pow(0.5, age_minutes / half_life_minutes)
 
     def _initialize(self):
         with self._connect() as connection:
@@ -219,7 +238,14 @@ class MemoryStore:
                 (session_id,),
             ).fetchall()
 
-        return [dict(row) for row in rows]
+        memories = []
+        for row in rows:
+            memory = dict(row)
+            memory["raw_weight"] = memory["weight"]
+            memory["weight"] = self._apply_weight_decay(memory["weight"], memory["created_at"])
+            memories.append(memory)
+
+        return memories
 
     def clear_memories(self, session_id):
         with self._connect() as connection:
