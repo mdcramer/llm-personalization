@@ -49,7 +49,7 @@ class OpenAIChatService:
         response = client.embeddings.create(**request)
         return response.data[0].embedding
 
-    def generate_cluster_labels(self, clusters):
+    def generate_cluster_annotations(self, clusters):
         if not clusters:
             return {}
 
@@ -57,18 +57,29 @@ class OpenAIChatService:
         prompt = self._load_prompt("cluster_labeling.txt")
 
         payload = []
+        memory_maps = {}
         for cluster in clusters:
+            cluster_memory_map = {}
+            memory_payload = []
+            for index, memory in enumerate(cluster["memories"], start=1):
+                memory_id = str(index)
+                cluster_memory_map[memory_id] = memory["embedding_text"]
+                memory_payload.append(
+                    {
+                        "memory_id": memory_id,
+                        "text": memory["embedding_text"],
+                        "score": memory["weight"],
+                    }
+                )
+
+            memory_maps[str(cluster["cluster_id"])] = cluster_memory_map
             payload.append(
                 {
                     "cluster_id": cluster["cluster_id"],
-                    "cluster_score": cluster["cluster_score"],
-                    "memories": [
-                        {
-                            "text": memory["embedding_text"],
-                            "score": memory["weight"],
-                        }
-                        for memory in cluster["memories"]
-                    ],
+                    "cluster_score": cluster.get("cluster_strength", cluster["cluster_score"]),
+                    "cluster_strength": cluster.get("cluster_strength", cluster["cluster_score"]),
+                    "cluster_balance": cluster.get("cluster_balance", 0),
+                    "memories": memory_payload,
                 }
             )
 
@@ -89,15 +100,47 @@ class OpenAIChatService:
 
         content = response.choices[0].message.content or "{}"
         parsed = json.loads(content)
-        raw_labels = parsed.get("descriptions", {})
-        labels = {}
+        raw_clusters = parsed.get("clusters", {})
+        annotations = {}
 
-        if isinstance(raw_labels, dict):
-            for key, value in raw_labels.items():
-                if isinstance(value, str) and value.strip():
-                    labels[str(key)] = value.strip()
+        if isinstance(raw_clusters, dict):
+            for cluster_id, payload in raw_clusters.items():
+                if not isinstance(payload, dict):
+                    continue
 
-        return labels
+                description = payload.get("description")
+                if not isinstance(description, str) or not description.strip():
+                    continue
+
+                alignments = {}
+                raw_alignments = payload.get("alignments", {})
+                if isinstance(raw_alignments, dict):
+                    cluster_memory_map = memory_maps.get(str(cluster_id), {})
+                    for memory_id, alignment in raw_alignments.items():
+                        embedding_text = cluster_memory_map.get(str(memory_id))
+                        if not embedding_text:
+                            continue
+                        if isinstance(alignment, str) and alignment.strip().lower() in {
+                            "support",
+                            "oppose",
+                            "unclear",
+                        }:
+                            alignments[embedding_text] = alignment.strip().lower()
+
+                annotations[str(cluster_id)] = {
+                    "description": description.strip(),
+                    "alignments": alignments,
+                }
+
+        return annotations
+
+    def generate_cluster_labels(self, clusters):
+        annotations = self.generate_cluster_annotations(clusters)
+        return {
+            cluster_id: annotation["description"]
+            for cluster_id, annotation in annotations.items()
+            if annotation.get("description")
+        }
 
     def _build_personalization_block(self, memories):
         if not memories:

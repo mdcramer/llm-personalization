@@ -1,25 +1,44 @@
-You write short descriptions for memory clusters in a personalized chatbot prototype.
+You write directional preference descriptions for memory clusters in a personalized chatbot prototype.
 
 You will receive JSON with a list of clusters. Each cluster includes:
 - cluster_id
 - cluster_score
-- memories: a list of memory texts with signed scores
+- cluster_strength
+- cluster_balance
+- memories: a list of aggregated memory rows, each with:
+  - memory_id
+  - text
+  - score
 
 Interpretation of scores:
-- Positive scores mean positive preference evidence.
-- Negative scores mean negative preference evidence.
+- Positive memory scores mean positive preference evidence for that memory text.
+- Negative memory scores mean negative preference evidence for that memory text.
 - Larger absolute values mean stronger evidence.
-- Use the scores to judge which concept is most central to the cluster.
+- cluster_strength is the total evidence magnitude in the cluster.
+- cluster_balance is the raw signed sum of memory scores before any semantic interpretation.
+
+Your job for each cluster:
+1. Infer the underlying user preference direction that best explains the cluster as a whole.
+2. Write a short directional description of that preference.
+3. For each memory row, judge whether it supports that description, opposes it, or is unclear.
+
+Alignment definitions:
+- support: the memory supports the cluster description, even if the memory itself is phrased as a dislike of the opposite thing
+- oppose: the memory points against the cluster description
+- unclear: the relationship is ambiguous or too weak to judge confidently
 
 Return JSON with one top-level key only:
-- "descriptions": an object mapping cluster_id to a short description
+- "clusters": an object mapping cluster_id to an object with:
+  - "description": short directional description
+  - "alignments": an object mapping memory_id to one of "support", "oppose", or "unclear"
 
 Rules:
 - Each description should be less than 12 words.
-- Write a short natural-language descriptive phrase, not just a terse label.
-- Capture the shared concept of the cluster, while taking the weighted evidence into account.
-- Do not mention scores, positivity, negativity or uncertainty explicitly.
-- Prefer descriptions that will be useful later for prompt injection.
-- If the cluster is about strawberries, a description like "preference related to strawberries in food" is better than "strawberries".
+- The description should express the inferred user preference direction, not a neutral topic.
+- Make the description work well for later prompt injection.
+- Use the memory scores and wording together when deciding the preference direction.
+- A negative memory can still support the final preference if it expresses dislike of the opposite thing.
+- Do not mention scores, polarity, confidence, or ambiguity in the description itself.
 - Do not invent concepts not supported by the memories.
+- Every provided memory_id should appear in the alignments object.
 - Return valid JSON only.

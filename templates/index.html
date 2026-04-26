@@ -517,7 +517,7 @@
         appendMessage("assistant", initialAssistantMessage);
       }
 
-      function renderMemories(memories) {
+      function renderClusters(clusters) {
         memoryTableBody.innerHTML = "";
 
         function formatWeightDisplay(value) {
@@ -527,99 +527,37 @@
           return `${clippedValue >= 0 ? "+" : "-"}${absoluteWeight}`;
         }
 
-        const clusterMap = new Map();
-
-        for (const memory of memories) {
-          const clusterKey = memory.cluster_id === null || memory.cluster_id === undefined
-            ? "unclustered"
-            : String(memory.cluster_id);
-          const embeddingText = memory.embedding_text || memory.content || "";
-
-          if (!clusterMap.has(clusterKey)) {
-            clusterMap.set(clusterKey, {
-              clusterId: memory.cluster_id,
-              clusterLabel: memory.cluster_label || "",
-              score: 0,
-              entries: new Map(),
-            });
-          }
-
-          const cluster = clusterMap.get(clusterKey);
-          if (!cluster.clusterLabel && memory.cluster_label) {
-            cluster.clusterLabel = memory.cluster_label;
-          }
-          cluster.score += Number(memory.weight ?? 0);
-
-          const entry = cluster.entries.get(embeddingText) || {
-            embedding_text: embeddingText,
-            weight: 0,
-            count: 0,
-          };
-          entry.weight += Number(memory.weight ?? 0);
-          entry.count += 1;
-          cluster.entries.set(embeddingText, entry);
-        }
-
-        const clusters = [...clusterMap.values()].map((cluster) => {
-          const entries = [...cluster.entries.values()].sort((a, b) => {
-            const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
-            if (weightDiff !== 0) {
-              return weightDiff;
-            }
-
-            return (a.embedding_text || "").localeCompare(b.embedding_text || "");
-          });
-
-          return {
-            ...cluster,
-            label: cluster.clusterId === -1
-              ? "Unclustered"
-              : (cluster.clusterLabel || entries[0]?.embedding_text || `Cluster ${cluster.clusterId}`),
-            entries,
-          };
-        }).sort((a, b) => {
-          if (a.clusterId === -1 && b.clusterId !== -1) {
-            return 1;
-          }
-          if (a.clusterId !== -1 && b.clusterId === -1) {
-            return -1;
-          }
-
-          const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
-          if (scoreDiff !== 0) {
-            return scoreDiff;
-          }
-
-          return (a.label || "").localeCompare(b.label || "");
-        });
-
         for (const cluster of clusters) {
           const clusterRow = document.createElement("tr");
           clusterRow.className = "cluster-row";
 
           const clusterScoreCell = document.createElement("td");
           const clusterLabelCell = document.createElement("td");
+          const clusterScore = Number(cluster.cluster_score ?? 0);
+          const clusterLabel = cluster.cluster_label || cluster.label || `Cluster ${cluster.cluster_id}`;
 
-          clusterScoreCell.textContent = formatWeightDisplay(cluster.score);
-          clusterScoreCell.className = cluster.score >= 0 ? "weight-positive" : "weight-negative";
-          clusterLabelCell.textContent = cluster.label;
+          clusterScoreCell.textContent = formatWeightDisplay(clusterScore);
+          clusterScoreCell.className = clusterScore >= 0 ? "weight-positive" : "weight-negative";
+          clusterLabelCell.textContent = clusterLabel;
           clusterLabelCell.className = "cluster-label";
 
           clusterRow.appendChild(clusterScoreCell);
           clusterRow.appendChild(clusterLabelCell);
           memoryTableBody.appendChild(clusterRow);
 
-          for (const memory of cluster.entries) {
+          for (const memory of (cluster.memories || [])) {
             const row = document.createElement("tr");
             row.className = "memory-row";
             const weightCell = document.createElement("td");
             const textCell = document.createElement("td");
             const weight = Number(memory.weight ?? 0);
             const countSuffix = memory.count > 1 ? ` (x${memory.count})` : "";
+            const marker = memory.alignment_marker || "x";
 
             weightCell.textContent = formatWeightDisplay(weight);
             weightCell.className = weight >= 0 ? "weight-positive" : "weight-negative";
-            textCell.textContent = `${memory.embedding_text || memory.content || ""}${countSuffix}`;
+            textCell.textContent =
+              `${memory.embedding_text || memory.content || ""}${countSuffix} (${marker})`;
 
             row.appendChild(weightCell);
             row.appendChild(textCell);
@@ -627,9 +565,9 @@
           }
         }
 
-        const hasMemories = memories.length > 0;
-        memoryEmptyState.hidden = hasMemories;
-        memoryGroups.hidden = !hasMemories;
+        const hasClusters = (clusters || []).length > 0;
+        memoryEmptyState.hidden = hasClusters;
+        memoryGroups.hidden = !hasClusters;
       }
 
       function renderMemoryCount(memories, limits) {
@@ -641,7 +579,7 @@
         try {
           const response = await fetch("/memories");
           const data = await response.json();
-          renderMemories(data.memories || []);
+          renderClusters(data.clusters || []);
           renderMemoryCount(data.memories || [], data.limits || {});
         } catch (error) {
           console.error("Failed to load memories:", error);
@@ -661,7 +599,7 @@
             throw new Error(data.error || "Failed to clear memories.");
           }
 
-          renderMemories(data.memories || []);
+          renderClusters(data.clusters || []);
           renderMemoryCount(data.memories || [], data.limits || {});
         } catch (error) {
           appendMessage("assistant", `Error: ${error.message}`);
@@ -719,7 +657,7 @@
 
           appendMessage("assistant", data.reply);
           history.push({ role: "assistant", content: data.reply });
-          renderMemories(data.memories || []);
+          renderClusters(data.clusters || []);
           renderMemoryCount(data.memories || [], data.limits || {});
           statusLabel.textContent = "";
         } catch (error) {

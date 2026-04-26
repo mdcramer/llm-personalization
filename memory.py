@@ -175,6 +175,14 @@ class MemoryStore:
                     """
                 )
 
+            if "cluster_alignment" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE memories
+                    ADD COLUMN cluster_alignment TEXT
+                    """
+                )
+
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_memories_session_created
@@ -255,6 +263,7 @@ class MemoryStore:
                     embedding_dimensions,
                     cluster_id,
                     cluster_label,
+                    cluster_alignment,
                     created_at
                 FROM memories
                 WHERE session_id = ?
@@ -302,11 +311,18 @@ class MemoryStore:
                 cluster_id,
                 {
                     "cluster_id": cluster_id,
+                    "cluster_strength": 0.0,
+                    "cluster_balance": 0.0,
                     "cluster_score": 0.0,
+                    "cluster_label": "",
                     "memories": {},
                 },
             )
-            bucket["cluster_score"] += float(memory.get("weight", 0))
+            weight = float(memory.get("weight", 0))
+            bucket["cluster_strength"] += abs(weight)
+            bucket["cluster_balance"] += weight
+            if not bucket["cluster_label"] and memory.get("cluster_label"):
+                bucket["cluster_label"] = memory["cluster_label"]
 
             embedding_text = memory.get("embedding_text") or memory.get("content") or ""
             entry = bucket["memories"].setdefault(
@@ -314,9 +330,26 @@ class MemoryStore:
                 {
                     "embedding_text": embedding_text,
                     "weight": 0.0,
+                    "strength": 0.0,
+                    "count": 0,
+                    "alignment": None,
                 },
             )
-            entry["weight"] += float(memory.get("weight", 0))
+            entry["weight"] += weight
+            entry["strength"] += abs(weight)
+            entry["count"] += 1
+            alignment = self._normalize_alignment(memory.get("cluster_alignment"))
+            if alignment and not entry["alignment"]:
+                entry["alignment"] = alignment
+
+        for cluster in cluster_map.values():
+            for entry in cluster["memories"].values():
+                alignment = entry.get("alignment")
+                weight = entry["weight"]
+                if alignment == "support":
+                    cluster["cluster_score"] += weight
+                elif alignment == "oppose":
+                    cluster["cluster_score"] -= weight
 
         summaries = []
         for cluster in cluster_map.values():
@@ -331,34 +364,106 @@ class MemoryStore:
                 {
                     "cluster_id": cluster["cluster_id"],
                     "cluster_score": cluster["cluster_score"],
+                    "cluster_strength": cluster["cluster_strength"],
+                    "cluster_balance": cluster["cluster_balance"],
+                    "cluster_label": cluster["cluster_label"],
                     "memories": entries,
                 }
             )
 
-        summaries.sort(key=lambda item: (-item["cluster_score"], item["cluster_id"]))
+        summaries.sort(
+            key=lambda item: (
+                -item["cluster_score"],
+                -item["cluster_strength"],
+                -abs(item["cluster_balance"]),
+                item["cluster_id"],
+            )
+        )
         return summaries
 
-    def update_cluster_labels(self, session_id, labels):
+    def _normalize_alignment(self, alignment):
+        if not alignment:
+            return None
+        value = str(alignment).strip().lower()
+        if value in {"support", "oppose", "unclear"}:
+            return value
+        return None
+
+    def update_cluster_annotations(self, session_id, annotations):
         with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE memories
-                SET cluster_label = NULL
+                SET cluster_label = NULL,
+                    cluster_alignment = NULL
                 WHERE session_id = ?
                 """,
                 (session_id,),
             )
 
-            for cluster_id, label in labels.items():
-                connection.execute(
-                    """
-                    UPDATE memories
-                    SET cluster_label = ?
-                    WHERE session_id = ?
-                      AND cluster_id = ?
-                    """,
-                    (label, session_id, int(cluster_id)),
-                )
+            for cluster_id, annotation in annotations.items():
+                label = (annotation.get("description") or "").strip()
+                alignments = annotation.get("alignments") or {}
+
+                if label:
+                    connection.execute(
+                        """
+                        UPDATE memories
+                        SET cluster_label = ?
+                        WHERE session_id = ?
+                          AND cluster_id = ?
+                        """,
+                        (label, session_id, int(cluster_id)),
+                    )
+
+                for embedding_text, alignment in alignments.items():
+                    normalized_alignment = self._normalize_alignment(alignment)
+                    if not normalized_alignment:
+                        continue
+
+                    connection.execute(
+                        """
+                        UPDATE memories
+                        SET cluster_alignment = ?
+                        WHERE session_id = ?
+                          AND cluster_id = ?
+                          AND embedding_text = ?
+                        """,
+                        (normalized_alignment, session_id, int(cluster_id), embedding_text),
+                    )
+
+    def get_cluster_alignment_marker(self, alignment):
+        normalized_alignment = self._normalize_alignment(alignment)
+        return {
+            "support": "+",
+            "oppose": "-",
+            "unclear": "x",
+        }.get(normalized_alignment, "x")
+
+    def build_cluster_response(self, session_id):
+        summaries = self.get_cluster_summaries(session_id)
+        for cluster in summaries:
+            if cluster.get("cluster_label"):
+                cluster["cluster_label"] = cluster["cluster_label"]
+            elif cluster["memories"]:
+                cluster["cluster_label"] = cluster["memories"][0]["embedding_text"]
+            else:
+                cluster["cluster_label"] = f"Cluster {cluster['cluster_id']}"
+
+            for memory in cluster["memories"]:
+                memory["alignment"] = self._normalize_alignment(memory.get("alignment")) or "unclear"
+                memory["alignment_marker"] = self.get_cluster_alignment_marker(memory["alignment"])
+
+        return summaries
+
+    def update_cluster_labels(self, session_id, labels):
+        normalized_annotations = {}
+        for cluster_id, label in labels.items():
+            normalized_annotations[cluster_id] = {
+                "description": label,
+                "alignments": {},
+            }
+        self.update_cluster_annotations(session_id, normalized_annotations)
 
     def recluster_memories(self, session_id):
         settings = self.get_clustering_settings()
@@ -394,7 +499,9 @@ class MemoryStore:
             connection.execute(
                 """
                 UPDATE memories
-                SET cluster_id = NULL
+                SET cluster_id = NULL,
+                    cluster_label = NULL,
+                    cluster_alignment = NULL
                 WHERE session_id = ?
                 """,
                 (session_id,),

@@ -6,43 +6,75 @@ This is a very small Flask-based chatbot prototype with:
 - a Flask backend
 - an OpenAI Chat Completions passthrough
 - SQLite-backed memories scoped to a browser session
+- OpenAI embeddings for stored memories
+- DBSCAN clustering for semantically similar memories
+- LLM-generated cluster descriptions plus per-memory alignment markers
+- prompt-based personalization injection during chat
 - prompt templates stored as editable text files
 
-## 1. Install Python
+## Run locally with Anaconda Prompt
+
+If PowerShell is giving you trouble, use **Anaconda Prompt** instead.
+
+## 1. Open Anaconda Prompt
+
+Open the Anaconda Prompt from the Start menu.
+
+## 2. Go to the project folder
+
+```bat
+cd C:\Users\markd\Documents\GitHub\llm-personalization
+```
+
+## 3. Create a Conda environment
 
 Use Python 3.11 or newer.
 
-## 2. Create and activate a virtual environment
-
-### Windows PowerShell
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+```bat
+conda create -n llm-personalization python=3.11 -y
 ```
 
-## 3. Install dependencies
+## 4. Activate the environment
 
-```powershell
+```bat
+conda activate llm-personalization
+```
+
+## 5. Install dependencies
+
+```bat
 pip install -r requirements.txt
 ```
 
-## 4. Set environment variables
+## 6. Set environment variables
 
-### Windows PowerShell
-
-```powershell
-$env:OPENAI_API_KEY="your_api_key_here"
-$env:OPENAI_MODEL="gpt-4o-mini"
+```bat
+set OPENAI_API_KEY=your_api_key_here
+set OPENAI_MODEL=gpt-4o-mini
 ```
 
-## 5. Run the app
+If you want to keep using the repo's default chat model, you can skip `OPENAI_MODEL`.
 
-```powershell
+## 7. Run the app
+
+```bat
 python app.py
 ```
 
 Then open [http://127.0.0.1:5000](http://127.0.0.1:5000).
+
+## Optional: PowerShell workflow
+
+If you want to use PowerShell later, this repo also works with a regular virtual environment:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:OPENAI_API_KEY="your_api_key_here"
+$env:OPENAI_MODEL="gpt-4o-mini"
+python app.py
+```
 
 ## Current scope
 
@@ -51,9 +83,10 @@ Version 0.1 is intentionally simple:
 - no authentication
 - no streaming
 - no persistent chat history
-- no memory injection yet
+- memories are injected into the chat prompt for personalization
 - memories are per browser session, not shared across users
 - memories expire and are capped to keep the demo DB from growing without bounds
+- memory clusters are generated from embeddings and labeled by an LLM
 
 The SQLite database is included now so we can add personalization later without changing the project shape too much.
 

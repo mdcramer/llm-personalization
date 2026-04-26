@@ -49,9 +49,11 @@ def index():
 def memories():
     session_id, is_new_session = get_or_create_session_id()
     memory_store.enforce_limits(session_id)
+    clusters = memory_store.build_cluster_response(session_id)
     response = jsonify(
         {
             "memories": memory_store.list_memories(session_id),
+            "clusters": clusters,
             "limits": memory_store.get_limits(),
         }
     )
@@ -67,6 +69,7 @@ def clear_memories():
         {
             "ok": True,
             "memories": [],
+            "clusters": [],
             "limits": memory_store.get_limits(),
         }
     )
@@ -151,16 +154,18 @@ def chat():
     memory_store.recluster_memories(session_id)
     try:
         cluster_summaries = memory_store.get_cluster_summaries(session_id)
-        cluster_labels = chat_service.generate_cluster_labels(cluster_summaries)
-        memory_store.update_cluster_labels(session_id, cluster_labels)
+        cluster_annotations = chat_service.generate_cluster_annotations(cluster_summaries)
+        memory_store.update_cluster_annotations(session_id, cluster_annotations)
     except Exception as exc:
         print(f"[cluster] labeling skipped for {session_id[:8]} due to error: {exc}")
     updated_memories = memory_store.list_memories(session_id)
+    updated_clusters = memory_store.build_cluster_response(session_id)
     response = jsonify(
         {
             "reply": reply,
             "extracted": extraction_result,
             "memories": updated_memories,
+            "clusters": updated_clusters,
             "limits": memory_store.get_limits(),
         }
     )
