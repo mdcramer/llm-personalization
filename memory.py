@@ -298,14 +298,16 @@ class MemoryStore:
                 (session_id,),
             )
 
-    def get_cluster_summaries(self, session_id):
+    def get_cluster_summaries(self, session_id, include_unclustered=False):
         memories = self.list_memories(session_id)
         cluster_map = {}
 
         for memory in memories:
             cluster_id = memory.get("cluster_id")
             if cluster_id in (None, -1):
-                continue
+                if not include_unclustered:
+                    continue
+                cluster_id = -1
 
             bucket = cluster_map.setdefault(
                 cluster_id,
@@ -314,7 +316,7 @@ class MemoryStore:
                     "cluster_strength": 0.0,
                     "cluster_balance": 0.0,
                     "cluster_score": 0.0,
-                    "cluster_label": "",
+                    "cluster_label": "Ungrouped memories" if cluster_id == -1 else "",
                     "memories": {},
                 },
             )
@@ -441,7 +443,7 @@ class MemoryStore:
         }.get(normalized_alignment, "x")
 
     def build_cluster_response(self, session_id):
-        summaries = self.get_cluster_summaries(session_id)
+        summaries = self.get_cluster_summaries(session_id, include_unclustered=True)
         for cluster in summaries:
             if cluster.get("cluster_label"):
                 cluster["cluster_label"] = cluster["cluster_label"]
