@@ -4,13 +4,20 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from model_settings import resolve_model_settings
+
 
 class OpenAIChatService:
     def __init__(self):
         self.config = self._load_config()
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = self.config.get("CHAT_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
+        settings = resolve_model_settings(self.config)
+        self.provider = settings["provider"]
+        self.model = settings["model"]
+        self.key_name = "MISTRAL_API_KEY" if self.provider == "mistral" else "OPENAI_API_KEY"
+        self.api_key = os.getenv(self.key_name)
+        base_url = "https://api.mistral.ai/v1" if self.provider == "mistral" else "https://api.openai.com/v1"
+        self.client = OpenAI(api_key=self.api_key, base_url=base_url) if self.api_key else None
+        self.embedding_client = self.client
         self.prompts_dir = Path(__file__).parent / "prompts"
 
     def _load_config(self):
@@ -28,7 +35,7 @@ class OpenAIChatService:
 
     def _require_client(self):
         if not self.client:
-            raise RuntimeError("OPENAI_API_KEY is not set.")
+            raise RuntimeError(f"{self.key_name} is not set for {self.provider} chat.")
         return self.client
 
     def _load_prompt(self, file_name):
@@ -36,14 +43,16 @@ class OpenAIChatService:
         return prompt_path.read_text(encoding="utf-8").strip()
 
     def build_embedding(self, text, model, dimensions):
-        client = self._require_client()
+        client = self.embedding_client
+        if client is None:
+            raise RuntimeError(f"{self.key_name} is required for {self.provider} embeddings.")
         request = {
             "model": model,
             "input": text,
             "encoding_format": "float",
         }
 
-        if dimensions:
+        if dimensions and self.provider == "openai":
             request["dimensions"] = dimensions
 
         response = client.embeddings.create(**request)

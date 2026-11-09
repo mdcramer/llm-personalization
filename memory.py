@@ -2,6 +2,8 @@ import math
 import json
 import random
 import sqlite3
+
+from model_settings import resolve_model_settings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -46,10 +48,8 @@ class MemoryStore:
         }
 
     def get_embedding_settings(self):
-        return {
-            "embedding_model": self._config_str("EMBEDDING_MODEL", "text-embedding-3-small"),
-            "embedding_dimensions": self._config_int("EMBEDDING_DIMENSIONS", 256),
-        }
+        settings = resolve_model_settings(self.config)
+        return {key: settings[key] for key in ("embedding_model", "embedding_dimensions")}
 
     def get_decay_settings(self):
         return {
@@ -472,6 +472,7 @@ class MemoryStore:
         epsilon = settings["cluster_epsilon"]
         min_samples = max(1, settings["cluster_min_samples"])
 
+        embedding_settings = self.get_embedding_settings()
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -479,9 +480,11 @@ class MemoryStore:
                 FROM memories
                 WHERE session_id = ?
                   AND embedding IS NOT NULL
+                  AND embedding_model = ?
+                  AND embedding_dimensions = ?
                 ORDER BY id
                 """,
-                (session_id,),
+                (session_id, embedding_settings["embedding_model"], embedding_settings["embedding_dimensions"]),
             ).fetchall()
 
             memories = []
