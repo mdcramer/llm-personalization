@@ -41,7 +41,7 @@ def normalize_embedding_text(content):
 @app.get("/")
 def index():
     session_id, is_new_session = get_or_create_session_id()
-    response = make_response(render_template("index.html"))
+    response = make_response(render_template("index.html", chat_provider=chat_service.provider.title(), chat_model=chat_service.model))
     return attach_session_cookie(response, session_id, is_new_session)
 
 

@@ -1,8 +1,9 @@
 # Prototype configuration
 # Edit the values below as needed. Restart Flask after changing this file.
 
-# Chat model for the main assistant and extraction calls.
-CHAT_MODEL=gpt-4o-mini
+# Chat model determines the API provider and embedding model automatically.
+# Environment variable CHAT_MODEL overrides this value; blank defaults to mistral-small-latest.
+CHAT_MODEL=
 
 # Parameters to prevent 'memories' from growing unbounded.
 MEMORY_TTL_DAYS=7
@@ -14,6 +15,5 @@ WEIGHT_HALF_LIFE_MINUTES=60
 CLUSTER_EPSILON=0.50
 CLUSTER_MIN_SAMPLES=2
 
-# Embedding settings for stored memories.
-EMBEDDING_MODEL=text-embedding-3-small
-EMBEDDING_DIMENSIONS=256
+# Embeddings follow CHAT_MODEL: Mistral uses mistral-embed (1024 dimensions);
+# OpenAI uses text-embedding-3-small (256 dimensions).
