@@ -1,0 +1,64 @@
+;;
+;; Domain:     mymemochat.com.
+;; Exported:   2026-06-28 22:35:46
+;;
+;; This file is intended for use for informational and archival
+;; purposes ONLY and MUST be edited before use on a production
+;; DNS server.  In particular, you must:
+;;   -- update the SOA record with the correct authoritative name server
+;;   -- update the SOA record with the contact e-mail address information
+;;   -- update the NS record(s) with the authoritative name servers for this domain.
+;;
+;; For further information, please consult the BIND documentation
+;; located on the following website:
+;;
+;; http://www.isc.org/
+;;
+;; And RFC 1035:
+;;
+;; http://www.ietf.org/rfc/rfc1035.txt
+;;
+;; Please note that we do NOT offer technical support for any use
+;; of this zone data, the BIND name server, or any other third-party
+;; DNS software.
+;;
+;; Use at your own risk.
+;; SOA Record
+mymemochat.com	3600	IN	SOA	kenneth.ns.cloudflare.com. dns.cloudflare.com. 2053435274 10000 2400 604800 3600
+
+;; NS Records
+mymemochat.com.	86400	IN	NS	kenneth.ns.cloudflare.com.
+mymemochat.com.	86400	IN	NS	veda.ns.cloudflare.com.
+
+;; A Records
+autoconfig.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+autodiscover.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+cpanel.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+cpcalendars.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+cpcontacts.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+localhost.mymemochat.com.	1	IN	A	127.0.0.1 ; cf_tags=cf-proxied:false
+mail.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+webdisk.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+webmail.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+whm.mymemochat.com.	1	IN	A	23.235.211.153 ; cf_tags=cf-proxied:true
+www.mymemochat.com.	1	IN	A	192.0.2.1 ; cf_tags=cf-proxied:true
+
+;; CNAME Records
+ftp.mymemochat.com.	1	IN	CNAME	mymemochat.com. ; cf_tags=cf-proxied:true
+mymemochat.com.	1	IN	CNAME	qs1xmj7t.up.railway.app. ; cf_tags=cf-proxied:true
+smtp.mymemochat.com.	1	IN	CNAME	mymemochat.com. ; cf_tags=cf-proxied:true
+
+;; SRV Records
+_autodiscover._tcp.mymemochat.com.	1	IN	SRV	0 0 443 cpanelemaildiscovery.cpanel.net.
+
+;; TXT Records
+_acme-challenge.mymemochat.com.	1	IN	TXT	"AFi2-jUFNAsmtSpDmwm2Xw9hFyzG2yj7z8EiSZI2yyU"
+_caldavs._tcp.mymemochat.com.	1	IN	TXT	"path=/"
+_caldav._tcp.mymemochat.com.	1	IN	TXT	"path=/"
+_carddavs._tcp.mymemochat.com.	1	IN	TXT	"path=/"
+_carddav._tcp.mymemochat.com.	1	IN	TXT	"path=/"
+_cpanel-dcv-test-record.mymemochat.com.	1	IN	TXT	"_cpanel-dcv-test-record=Jf49gvmeVGBC5TK5LROA8LYa5DVr5sQsQ2xobOlkC_u6nrVQI9LfbTHpf3fBG_4A"
+default._domainkey.mymemochat.com.	1	IN	TXT	"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvU+Uo3h1sT1jdcfpII3XheE4PpWJPGxllc41a+PLpa9JR1BTMzaOSFaRSZSfB96qI47i1sdhU+JJbZecgS8yMka+nHY7VdCkbK3FxsOPoc5mumSaO+y2v6XkHLWUktnH7mbD5+TGtKuIKEmtUQ9+Pe/tnaOmxWG62nbFp0iegs+JGIlQMCM4EzZpBFYwUgpOP" "Nxk2ZurP+FW5iru5n/1dRRJEhxYKvTJMHp5T+ReUwU6Yp44zAl6T/jCPDvyqvRWBU66naseXuFVQzeFfm9pEQio57YiqOogs+oqqd6VW6ydSf/MiSlFupdI5bPOF1YyPeMAJmlXWm+2W12znNBMTQIDAQAB;"
+_dmarc.mymemochat.com.	1	IN	TXT	"v=DMARC1; p=none;"
+mymemochat.com.	1	IN	TXT	"v=spf1 +a +mx +ip4:192.145.239.32 include:relay.mailchannels.net ~all"
+_railway-verify.mymemochat.com.	3600	IN	TXT	"railway-verify=9cc99eeae85db6acd9785c21775f63cf159b090b6e51d0b4ccd422b89c048c81"
